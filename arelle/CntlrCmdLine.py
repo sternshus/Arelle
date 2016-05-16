@@ -46,6 +46,15 @@ def main():
     gettext.install("arelle") # needed for options messages
     parseAndRun(args)
     
+def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/000155837015002024/mmm-20150930.xml'):
+    
+    args = ['--plugins', 'xbrlDB', '-f', furi, '--disclosureSystem', 'efm-strict-all-years', '--store-to-XBRL-DB', 
+            'rdfTurtleFile,None,None,None,turtle.rdf,None,rdfDB']
+    
+        
+    gettext.install("arelle") # needed for options messages
+    return parseAndRun(args)
+    
 def wsgiApplication():
     return parseAndRun( ["--webserver=::wsgi"] )
        
@@ -422,9 +431,9 @@ def parseAndRun(args):
                            logFormat=(options.logFormat or "[%(messageCode)s] %(message)s - %(file)s"),
                            logLevel=(options.logLevel or "DEBUG"),
                            logToBuffer=getattr(options, "logToBuffer", False)) # e.g., used by EdgarRenderer to require buffered logging
-        cntlr.run(options)
+        success = cntlr.run(options)
         
-        return cntlr
+        return success
     
 class ParserForDynamicPlugins:
     def __init__(self, options):
@@ -953,7 +962,7 @@ class CntlrCmdLine(Cntlr.Cntlr):
                     if options.arcroleTypesFile:
                         ViewFileRoleTypes.viewRoleTypes(modelXbrl, options.arcroleTypesFile, "Arcrole Types", isArcrole=True, lang=options.labelLang)
                     for pluginXbrlMethod in pluginClassMethods("CntlrCmdLine.Xbrl.Run"):
-                        pluginXbrlMethod(self, options, modelXbrl, _entrypoint)
+                        g = pluginXbrlMethod(self, options, modelXbrl, _entrypoint)
                                             
                 except (IOError, EnvironmentError) as err:
                     self.addToLog(_("[IOError] Failed to save output:\n {0}").format(err),
@@ -992,7 +1001,7 @@ class CntlrCmdLine(Cntlr.Cntlr):
             win32file.CloseHandle(self.statusPipe)
             self.statusPipe = None # dereference
 
-        return success
+        return (success, modelXbrl, g)
 
     # default web authentication password
     def internet_user_password(self, host, realm):
