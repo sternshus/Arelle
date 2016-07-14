@@ -48,7 +48,7 @@ def main():
     
 def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/000155837015002024/mmm-20150930.xml'):
     
-    args = ['--plugins', 'xbrlDB', '-f', furi, '--disclosureSystem', 'efm-strict-all-years', '--store-to-XBRL-DB', 
+    args = ['--plugins', 'xbrlDB', '-f', furi, '--keepOpen', '--store-to-XBRL-DB',
             'rdfTurtleFile,None,None,None,turtle.rdf,None,rdfDB']
     
         
