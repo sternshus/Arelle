@@ -55,6 +55,7 @@ class DialogPluginManager(Toplevel):
         self.pluginConfigChanged = False
         self.uiClassMethodsChanged = False
         self.modelClassesChanged = False
+        self.customTransformsChanged = False
         self.disclosureSystemTypesChanged = False
         self.hostSystemFeaturesChanged = False
         self.modulesWithNewerFileDates = modulesWithNewerFileDates
@@ -285,7 +286,7 @@ class DialogPluginManager(Toplevel):
             PluginManager.pluginConfig = self.pluginConfig
             PluginManager.pluginConfigChanged = True
             PluginManager.reset()  # force reloading of modules
-        if self.uiClassMethodsChanged or self.modelClassesChanged or self.disclosureSystemTypesChanged or self.hostSystemFeaturesChanged:  # may require reloading UI
+        if self.uiClassMethodsChanged or self.modelClassesChanged or self.customTransformsChanged or self.disclosureSystemTypesChanged or self.hostSystemFeaturesChanged:  # may require reloading UI
             affectedItems = ""
             if self.uiClassMethodsChanged:
                 affectedItems += _("menus of the user interface")
@@ -293,6 +294,10 @@ class DialogPluginManager(Toplevel):
                 if affectedItems:
                     affectedItems += _(" and ")
                 affectedItems += _("model objects of the processor")
+            if self.customTransformsChanged:
+                if affectedItems:
+                    affectedItems += _(" and ")
+                affectedItems += _("custom transforms")
             if self.disclosureSystemTypesChanged:
                 if affectedItems:
                     affectedItems += _(" and ")
@@ -393,15 +398,16 @@ class DialogPluginManager(Toplevel):
                         moduleInfo = PluginManager.moduleModuleInfo(fPath)
                         if moduleInfo:
                             choices.append((indent + f, 
-                                            "name: {}\ndescription: {}\n version {}".format(
+                                            "name: {}\ndescription: {}\nversion: {}\nlicense: {}".format(
                                                         moduleInfo["name"],
                                                         moduleInfo["description"],
-                                                        moduleInfo.get("version")), 
-                                            fPath, moduleInfo["name"], moduleInfo.get("version"), moduleInfo["description"]))
+                                                        moduleInfo.get("version"),
+                                                        moduleInfo.get("license")), 
+                                            fPath, moduleInfo["name"], moduleInfo.get("version"), moduleInfo["description"], moduleInfo.get("license")))
                             dirHasEntries = True
                     if os.path.isdir(fPath) and f not in ("DQC_US_Rules",):
                         if selectChoices(fPath, indent=indent + "   ") and not moduleInfo:
-                            choices.insert(dirInsertPoint, (indent + f,None,None,None,None,None))
+                            choices.insert(dirInsertPoint, (indent + f,None,None,None,None,None,None))
             return dirHasEntries
         selectChoices(self.cntlr.pluginDir)
         selectedPath = DialogOpenArchive.selectPlugin(self, choices)
@@ -461,6 +467,8 @@ class DialogPluginManager(Toplevel):
                 self.uiClassMethodsChanged = True  # may require reloading UI
             elif classMethod == "ModelObjectFactory.ElementSubstitutionClasses":
                 self.modelClassesChanged = True # model object factor classes changed
+            elif classMethod == "ModelManager.LoadCustomTransforms":
+                self.customTransformsChanged = True
             elif classMethod == "DisclosureSystem.Types":
                 self.disclosureSystemTypesChanged = True # disclosure system types changed
             elif classMethod.startswith("Proxy."):
@@ -564,8 +572,8 @@ class DialogPluginManager(Toplevel):
                     
     def enableDisableAll(self, doEnable):
         for module in self.pluginConfig["modules"]:
-            if not module.get("isImported"):
-                moduleInfo = self.pluginConfig["modules"][module]
+            moduleInfo = self.pluginConfig["modules"][module]
+            if not moduleInfo.get("isImported"):
                 def _enableDisableAll(moduleInfo):
                     if doEnable:
                         moduleInfo["status"] = "enabled"

@@ -8,9 +8,17 @@ Refactored on Jun 11, 2011 to ModelDtsObject, ModelInstanceObject, ModelTestcase
 from lxml import etree
 from collections import namedtuple
 from arelle import Locale
+XmlUtil = None
+VALID_NO_CONTENT = None
 
 emptySet = set()
 
+def init(): # init globals
+    global XmlUtil, VALID_NO_CONTENT
+    if XmlUtil is None:
+        from arelle import XmlUtil
+        from arelle.XmlValidate import VALID_NO_CONTENT
+        
 class ModelObject(etree.ElementBase):
     """ModelObjects represent the XML elements within a document, and are implemented as custom 
     lxml proxy objects.  Each modelDocument has a parser with the parser objects in ModelObjectFactory.py, 
@@ -229,12 +237,14 @@ class ModelObject(etree.ElementBase):
         return ''.join(self._textNodes())  # no text nodes returns ''
     
     def _textNodes(self, recurse=False):
-        if self.text: yield self.text
+        if self.text and getattr(self,"xValid", 0) != VALID_NO_CONTENT: # skip tuple whitespaces
+                yield self.text
         for c in self.iterchildren():
             if recurse and isinstance(c, ModelObject):
                 for nestedText in c._textNodes(recurse):
                     yield nestedText
-            if c.tail: yield c.tail  # get tail of nested element, comment or processor nodes
+            if c.tail and getattr(self,"xValid", 0) != VALID_NO_CONTENT: # skip tuple whitespaces 
+                yield c.tail  # get tail of nested element, comment or processor nodes
 
     @property
     def document(self):
@@ -324,8 +334,9 @@ class ModelObject(etree.ElementBase):
     
     @property
     def propertyView(self):
-        return (("QName", self.qname),
-                ("id", self.id))
+        return (("QName", self.elementQname),) + tuple(
+                (XmlUtil.clarkNotationToPrefixedName(self, _tag, isAttribute=True), _value)
+                for _tag, _value in self.items())
         
     def __repr__(self):
         return ("{0}[{1}, {2} line {3})".format(type(self).__name__, self.objectIndex, self.modelDocument.basename, self.sourceline))

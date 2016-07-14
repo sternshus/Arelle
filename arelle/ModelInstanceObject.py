@@ -33,8 +33,9 @@
 """
 from collections import defaultdict
 from lxml import etree
-from arelle import XmlUtil, XbrlConst, XbrlUtil, UrlUtil, Locale, ModelValue, XmlValidate
+from arelle import XmlUtil, XbrlConst, XbrlUtil, UrlUtil, Locale, ModelValue
 from arelle.ValidateXbrlCalcs import inferredPrecision, inferredDecimals, roundValue
+from arelle.XmlValidate import UNVALIDATED, INVALID, VALID
 from arelle.PrototypeInstanceObject import DimValuePrototype
 from math import isnan, isinf
 from arelle.ModelObject import ModelObject
@@ -337,8 +338,12 @@ class ModelFact(ModelObject):
     @property
     def fractionValue(self):
         """( (str,str) ) -- (text value of numerator, text value of denominator)"""
-        return (XmlUtil.text(XmlUtil.child(self, None, "numerator")),
-                XmlUtil.text(XmlUtil.child(self, None, "denominator")))
+        try:
+            return self._fractionValue
+        except AttributeError:
+            self._fractionValue = (XmlUtil.text(XmlUtil.child(self, None, "numerator")),
+                                   XmlUtil.text(XmlUtil.child(self, None, "denominator")))
+            return self._fractionValue
     
     @property
     def effectiveValue(self):
@@ -350,8 +355,12 @@ class ModelFact(ModelObject):
         if self.isNil:
             return "(nil)"
         try:
+            if concept.isFraction:
+                if self.xValid >= VALID:
+                    return str(self.xValue)
+                return "/".join(self.fractionValue)
+            val = self.value
             if concept.isNumeric:
-                val = self.value
                 try:
                     # num = float(val)
                     dec = self.decimals
@@ -372,7 +381,9 @@ class ModelFact(ModelObject):
                         return Locale.format(self.modelXbrl.locale, "{:.{}f}", (num,dec), True)
                 except ValueError: 
                     return "(error)"
-            return self.value
+            if len(val) == 0: # zero length string for HMRC fixed fact
+                return "(reported)"
+            return val
         except Exception as ex:
             return str(ex)  # could be transform value of inline fact
 
@@ -390,6 +401,8 @@ class ModelFact(ModelObject):
         """
         if self.isTuple or other.isTuple:
             return False
+        if self.context is None or self.concept is None:
+            return False # need valid context and concept for v-Equality of nonTuple
         if self.isNil:
             return other.isNil
         if other.isNil:
@@ -398,7 +411,7 @@ class ModelFact(ModelObject):
             return False
         if self.concept.isNumeric:
             if other.concept.isNumeric:
-                if not self.unit.isEqualTo(other.unit):
+                if self.unit is None or not self.unit.isEqualTo(other.unit):
                     return False
                 if self.modelXbrl.modelManager.validateInferDecimals:
                     d = min((inferredDecimals(self), inferredDecimals(other))); p = None
@@ -553,6 +566,10 @@ class ModelInlineValueObject:
         except ValueError:
             return None # should have rasied a validation error in XhtmlValidate.py
     
+    def setInvalid(self):
+        self._ixValue = ModelValue.INVALIDixVALUE
+        self.xValid = INVALID
+        self.xValue = None
     
     @property
     def value(self):
@@ -561,6 +578,8 @@ class ModelInlineValueObject:
         try:
             return self._ixValue
         except AttributeError:
+            self.xValid = UNVALIDATED # may not be initialized otherwise
+            self.xValue = None
             v = XmlUtil.innerText(self, 
                                   ixExclude=True, 
                                   ixEscape=(self.get("escape") in ("true","1")), 
@@ -577,11 +596,19 @@ class ModelInlineValueObject:
                 else:
                     try:
                         v = self.modelXbrl.modelManager.customTransforms[f](v)
+                    except KeyError as err:
+                        self._ixValue = ModelValue.INVALIDixVALUE
+                        raise FunctionIxt.ixtFunctionNotAvailable
                     except Exception as err:
                         self._ixValue = ModelValue.INVALIDixVALUE
                         raise err
             if self.localName == "nonNumeric" or self.localName == "tuple" or self.isNil:
                 self._ixValue = v
+            elif self.localName == "fraction":
+                if self.xValid >= VALID:
+                    self._ixValue = str(self.xValue)
+                else:
+                    self._ixValue = "NaN"
             else:  # determine string value of transformed value
                 negate = -1 if self.sign else 1
                 try:
@@ -589,7 +616,7 @@ class ModelInlineValueObject:
                     # use decimal so all number forms work properly
                     num = Decimal(v)
                 except (ValueError, InvalidOperation):
-                    self._ixValue = ModelValue.INVALIDixVALUE
+                    self.setInvalid()
                     raise ValueError("Invalid value for {} number: {}".format(self.localName, v))
                 try:
                     scale = self.scale
@@ -601,11 +628,11 @@ class ModelInlineValueObject:
                     elif isnan(num):
                         self._ixValue = "NaN"
                     else:
-                        if num == num.to_integral():
+                        if num == num.to_integral() and ".0" not in v:
                             num = num.quantize(DECIMALONE) # drop any .0
                         self._ixValue = "{}".format(num)
                 except (ValueError, InvalidOperation):
-                    self._ixValue = ModelValue.INVALIDixVALUE
+                    self.setInvalid()
                     raise ValueError("Invalid value for {} scale {} for number {}".format(self.localName, scale, v))
             return self._ixValue
 
@@ -731,7 +758,7 @@ class ModelInlineFractionTerm(ModelInlineValueObject, ModelObject):
     def qname(self):
         if self.localName == "numerator":
             return XbrlConst.qnXbrliNumerator
-        elif self.localName == "denomiantor":
+        elif self.localName == "denominator":
             return XbrlConst.qnXbrliDenominator
         return self.elementQname
     
@@ -1194,7 +1221,7 @@ class ModelDimensionValue(ModelObject):
     def dimensionQname(self):
         """(QName) -- QName of the dimension concept"""
         dimAttr = self.xAttributes.get("dimension", None)
-        if dimAttr is not None and dimAttr.xValid >= 4:
+        if dimAttr is not None and dimAttr.xValid >= VALID:
             return dimAttr.xValue
         return None
         #return self.prefixedNameQname(self.get("dimension"))
@@ -1235,7 +1262,7 @@ class ModelDimensionValue(ModelObject):
         try:
             return self._memberQname
         except AttributeError:
-            if self.isExplicit and self.xValid >= 4:
+            if self.isExplicit and self.xValid >= VALID:
                 self._memberQname = self.xValue
             else:
                 self._memberQname = None
@@ -1278,7 +1305,7 @@ class ModelDimensionValue(ModelObject):
             return (str(self.dimensionQname), XmlUtil.xmlstring( XmlUtil.child(self), stripXmlns=True, prettyPrint=True ) )
         
 def measuresOf(parent):
-    if parent.xValid >= 4: # has DTS and is validated
+    if parent.xValid >= VALID: # has DTS and is validated
         return sorted([m.xValue 
                        for m in parent.iterchildren(tag="{http://www.xbrl.org/2003/instance}measure") 
                        if isinstance(m, ModelObject) and m.xValue])
@@ -1495,12 +1522,7 @@ class ModelInlineFootnote(ModelResource):
         return attributes
 
     def viewText(self, labelrole=None, lang=None):
-        """(str) -- Text of contained (inner) text nodes except for any whose localName 
-        starts with URI, for label and reference parts displaying purposes."""
-        return " ".join([XmlUtil.text(resourceElt)
-                           for resourceElt in self.iter()
-                              if isinstance(resourceElt,ModelObject) and 
-                                  not resourceElt.localName.startswith("URI")])    
+        return self.value
         
     @property
     def propertyView(self):

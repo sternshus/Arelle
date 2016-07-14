@@ -55,8 +55,8 @@ def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/0001
     gettext.install("arelle") # needed for options messages
     return parseAndRun(args)
     
-def wsgiApplication():
-    return parseAndRun( ["--webserver=::wsgi"] )
+def wsgiApplication(extraArgs=[]): # for example call wsgiApplication(["--plugins=EdgarRenderer"])
+    return parseAndRun( ["--webserver=::wsgi"] + extraArgs )
        
 def parseAndRun(args):
     """interface used by Main program and py.test (arelle_test.py)
@@ -391,9 +391,8 @@ def parseAndRun(args):
                 "\n   Python(r) {3[0]}.{3[1]}.{3[2]} (c) 2001-2013 Python Software Foundation"
                 "\n   PyParsing (c) 2003-2013 Paul T. McGuire"
                 "\n   lxml {4[0]}.{4[1]}.{4[2]} (c) 2004 Infrae, ElementTree (c) 1999-2004 by Fredrik Lundh"
-                "\n   xlrd (c) 2005-2013 Stephen J. Machin, Lingfo Pty Ltd, (c) 2001 D. Giffin, (c) 2000 A. Khan"
-                "\n   xlwt (c) 2007 Stephen J. Machin, Lingfo Pty Ltd, (c) 2005 R. V. Kiseliov"
                 "{2}"
+                "\n   May include installable plug-in modules with author-specific license terms"
                 ).format(cntlr.systemWordSize, Version.version,
                          _("\n   Bottle (c) 2011-2013 Marcel Hellkamp") if hasWebServer else "",
                          sys.version_info, etree.LXML_VERSION))
@@ -568,7 +567,9 @@ class CntlrCmdLine(Cntlr.Cntlr):
                         self.addToLog(_("Activation of plug-in {0} successful, version {1}.").format(moduleInfo.get("name"), moduleInfo.get("version")), 
                                       messageCode="info", file=moduleInfo.get("moduleURL"))
                     else:
-                        self.addToLog(_("Unable to load {0} as a plug-in or {0} is not recognized as a command. ").format(cmd), messageCode="info", file=cmd)
+                        self.addToLog(_("Unable to load \"%(name)s\" as a plug-in or \"%(name)s\" is not recognized as a plugin command. "),
+                                      messageCode="arelle:pluginParameterError", 
+                                      messageArgs={"name": cmd, "file": cmd}, level=logging.ERROR)
                 if resetPlugins:
                     PluginManager.reset()
                     if savePluginChanges:
@@ -603,7 +604,7 @@ class CntlrCmdLine(Cntlr.Cntlr):
                         self.addToLog(_("Addition of package {0} successful.").format(packageInfo.get("name")), 
                                       messageCode="info", file=packageInfo.get("URL"))
                     else:
-                        self.addToLog(_("Unable to load plug-in."), messageCode="info", file=cmd[1:])
+                        self.addToLog(_("Unable to load package."), messageCode="info", file=cmd[1:])
                 elif cmd.startswith("~"):
                     if PackageManager.reloadPackageModule(self, cmd[1:]):
                         self.addToLog(_("Reload of package successful."), messageCode="info", file=cmd[1:])
@@ -622,7 +623,9 @@ class CntlrCmdLine(Cntlr.Cntlr):
                                       messageCode="info", file=packageInfo.get("URL"))
                         resetPlugins = True
                     else:
-                        self.addToLog(_("Unable to load {0} as a package or {0} is not recognized as a command. ").format(cmd), messageCode="info", file=cmd)
+                        self.addToLog(_("Unable to load package \"%(name)s\". "),
+                                      messageCode="arelle:packageLoadingError", 
+                                      messageArgs={"name": cmd, "file": cmd}, level=logging.ERROR)
             if PackageManager.packagesConfigChanged:
                 PackageManager.rebuildRemappings(self)
             if savePackagesChanges:

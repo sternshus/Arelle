@@ -18,7 +18,7 @@ rem @set TK_LIBRARY=c:\python35\tcl\tk8.6
 
 rem Rebuild messages.pot internationalization file
 "%PYTHON64DIR%\python" pygettext.py -v -o arelle\locale\messages.pot arelle\*.pyw arelle\*.py
-pause "Please check the python gettext string conversions"
+rem pause "Please check the python gettext string conversions"
 
 rem Regenerate messages catalog (doc/messagesCatalog.xml)
 "%PYTHON64DIR%\python" generateMessagesCatalog.py
@@ -30,20 +30,24 @@ mkdir dist
 
 @set FILESUFFIX=""
 
-@if "%1" == "er3.814" (
-echo Copying EdgarRenderer
-@set ER3DIR=Z:\Documents\mvsl\projects\SEC\RenderingEngine\github_plugin_3_3_0_814
-xcopy "%ER3DIR%" arelle\plugin\EdgarRenderer/s/i
-@set FILESUFFIX="ER3"
-)
+rem @if "%1" == "er3.814" (
+rem echo Copying EdgarRenderer
+rem @set ER3DIR=Z:\Documents\mvsl\projects\SEC\RenderingEngine\github_plugin_3_3_0_814
+rem xcopy "%ER3DIR%" arelle\plugin\EdgarRenderer/s/i
+rem @set FILESUFFIX="ER3"
+rem )
 
 "%PYTHON64DIR%\python" buildVersion.py %FILESUFFIX%
 
 rem win 64 build
 "%PYTHON64DIR%\python" setup.py build_exe
-@if "%1" == "er3.814" (
-rmdir arelle\plugin\EdgarRenderer/s/q
-)
+rem @if "%1" == "er3.814" (
+rem rmdir arelle\plugin\EdgarRenderer/s/q
+rem )
+
+rem remove .git subdirectories
+FOR /F "tokens=*" %%G IN ('DIR /B /AD /S %BUILT64DIR%\.git') DO RMDIR /S /Q "%%G"
+
 
 @if not "%1" == "eiopa" (
 "%NSISDIR%\makensis" installWin64.nsi
@@ -54,6 +58,8 @@ call buildRenameX64.bat
 @if "%do32bitBuild%" == "true" (
 rem win 32 (x86) build
 "%PYTHON32DIR%\python" setup.py build_exe
+rem remove .git subdirectories
+FOR /F "tokens=*" %%G IN ('DIR /B /AD /S %BUILT32DIR%\.git') DO RMDIR /S /Q "%%G"
 @if not "%1" == "eiopa" (
 "%NSISDIR%\makensis" installWin86.nsi
 rem rename for build date
@@ -64,17 +70,21 @@ call buildRenameX86.bat
 @if "%1" == "eiopa" (
 rem win 64 zip
 cd "%BUILT64DIR%"
+# remove .git subdirectories
+FOR /F "tokens=*" %%G IN ('DIR /B /AD /S .git') DO RMDIR /S /Q "%%G"
 "%ZIP%" a -tzip ..\..\dist\arelle-cmd64.zip *
 cd ..\..
-"%ZIP%" d dist\arelle-cmd64.zip arelleGUI.exe tck85.dll tk85.dll tck tcl tk images scripts doc examples locale QuickBooks.qwc msvcrt.dll msvcp100.dll
+"%ZIP%" d dist\arelle-cmd64.zip arelleGUI.exe tcl86t.dll tk86t.dll tck tcl tk images scripts doc examples locale QuickBooks.qwc msvcrt.dll msvcp100.dll
 rem don't remove (for bare machine) MSVCR100.dll
 call buildRenameZip64.bat
 
 rem win 32 zip
 cd "%BUILT32DIR%"
+# remove .git subdirectories
+FOR /F "tokens=*" %%G IN ('DIR /B /AD /S .git') DO RMDIR /S /Q "%%G"
 "%ZIP%" a -tzip ..\..\dist\arelle-cmd32.zip *
 cd ..\..
-"%ZIP%" d dist\arelle-cmd32.zip arelleGUI.exe tck85.dll tk85.dll tck tcl tk images scripts doc examples locale QuickBooks.qwc msvcrt.dll msvcp100.dll
+"%ZIP%" d dist\arelle-cmd32.zip arelleGUI.exe tcl86t.dll tk86t.dll tck tcl tk images scripts doc examples locale QuickBooks.qwc msvcrt.dll msvcp100.dll
 rem don't remove (for bare machine) MSVCR100.dll
 call buildRenameZip32.bat
 )

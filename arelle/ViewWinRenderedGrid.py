@@ -8,7 +8,7 @@ Created on Oct 5, 2010
 import os, threading, time, logging
 from tkinter import Menu, BooleanVar, font as tkFont
 from arelle import (ViewWinTkTable, ModelDocument, ModelDtsObject, ModelInstanceObject, XbrlConst, 
-                    ModelXbrl, XmlValidate, Locale, FunctionXfi,
+                    ModelXbrl, Locale, FunctionXfi,
                     ValidateXbrlDimensions)
 from arelle.ModelValue import qname, QName
 from arelle.RenderingResolver import resolveAxesStructure, RENDER_UNITS_PER_CHAR
@@ -26,6 +26,7 @@ from collections import defaultdict
 from arelle.ValidateXbrl import ValidateXbrl
 from arelle.XbrlConst import eurofilingModelNamespace, eurofilingModelPrefix
 from arelle.ValidateXbrlDimensions import isFactDimensionallyValid
+from arelle.XmlValidate import UNVALIDATED, validate as xmlValidate
 
 try:
     from tkinter import ttk
@@ -260,7 +261,11 @@ class ViewRenderedGrid(ViewWinTkTable.ViewTkTable):
                 if fp is not None:
                     fp.clear()
             self.factPrototypes = []
+            
+            startedAt2 = time.time()
             self.bodyCells(self.dataFirstRow, yTopStructuralNode, xStructuralNodes, self.zAspectStructuralNodes, self.yAxisChildrenFirst.get())
+            #print("bodyCells {:.2f}secs ".format(time.time() - startedAt2) + self.roledefinition)
+            
             self.table.clearModificationStatus()
             self.table.disableUnusedCells()
             self.table.resizeTableCells()
@@ -598,6 +603,13 @@ class ViewRenderedGrid(ViewWinTkTable.ViewTkTable):
                     # data for columns of row
                     #print ("row " + str(row) + "yNode " + yStructuralNode.definitionNode.objectId() )
                     ignoreDimValidity = self.ignoreDimValidity.get()
+                    
+                    # Reuse already computed facts partition in case of open Y axis
+                    if True and hasattr(yStructuralNode, "factsPartition"):
+                        factsPartition = yStructuralNode.factsPartition
+                    else:
+                        factsPartition = None
+                    
                     for i, xStructuralNode in enumerate(xStructuralNodes):
                         isEntryPrototype = isYEntryPrototype or xStructuralNode.isEntryPrototype(default=False)
                         xAspectStructuralNodes = defaultdict(set)
@@ -663,6 +675,9 @@ class ViewRenderedGrid(ViewWinTkTable.ViewTkTable):
                                     else:
                                         value = fact.effectiveValue
                                     objectId = fact.objectId()
+                                    # we can now remove that fact if we picked up from the computed partition entry
+                                    if factsPartition is not None:
+                                        factsPartition.remove(fact)
                                     justify = XbrlTable.TG_RIGHT_JUSTIFIED if fact.isNumeric else XbrlTable.TG_LEFT_JUSTIFIED
                                     break
                         if (conceptNotAbstract and
@@ -1036,8 +1051,8 @@ class ViewRenderedGrid(ViewWinTkTable.ViewTkTable):
                                         fact.unitID = unitId
                                     fact.text = str(value)
                                     instance.setIsModified()
-                                    fact.xValid = XmlValidate.UNVALIDATED
-                                    XmlValidate.validate(instance, fact)
+                                    fact.xValid = UNVALIDATED
+                                    xmlValidate(instance, fact)
             tbl.clearModificationStatus()
 
     def saveInstance(self, newFilename=None, onSaved=None):
