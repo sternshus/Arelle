@@ -9,7 +9,7 @@ sys.argv = ['','-f', 'http://www.sec.gov/Archives/edgar/data/66740/0001558370150
              '--store-to-XBRL-DB',
             'rdfTurtleFile,None,None,None,/home/redward/Downloads/turtle_3m.rdf,None,rdfDB']
 
-result, model, graph = CntlrCmdLine.xbrlTurtleGraphModel('http://www.sec.gov/Archives/edgar/data/1333822/000155837016006627/0001558370-16-006627-xbrl.zip')
-print(model)
+metas, uri, model, graph = CntlrCmdLine.xbrlTurtleGraphModel('http://www.sec.gov/Archives/edgar/data/1333822/000155837016006627/0001558370-16-006627-xbrl.zip')
+
 
 x = 5

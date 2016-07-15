@@ -53,8 +53,23 @@ def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/0001
     
         
     gettext.install("arelle") # needed for options messages
-    return parseAndRun(args)
-    
+    elements = ['EntityRegistrantName', 'DocumentType', 'EntityCentralIndexKey', 'DocumentPeriodEndDate']
+    success, model, graph = parseAndRun(args)
+    uri = model.uriDir
+    metas = get_xbrl_metafields(model, elements)
+    return (metas, uri, model, graph)
+
+def get_xbrl_metafields(model, elements):
+    metas = {}
+    for k,v  in model.factsByQname.items():
+        for el in elements:
+            if k.localName.startswith(el):
+                metas[el] = list(v)[0].value
+        if set(elements) == set(metas.keys()) and not(list(metas.values()).count(None)):
+            break
+    return metas
+
+
 def wsgiApplication(extraArgs=[]): # for example call wsgiApplication(["--plugins=EdgarRenderer"])
     return parseAndRun( ["--webserver=::wsgi"] + extraArgs )
        
@@ -689,7 +704,7 @@ class CntlrCmdLine(Cntlr.Cntlr):
         if options.skipLoading: # skip loading matching files (list of unix patterns)
             self.modelManager.skipLoading = re.compile(
                 '|'.join(fnmatch.translate(f) for f in options.skipLoading.split('|')))
-            
+
         # disclosure system sets logging filters, override disclosure filters, if specified by command line
         if options.logLevelFilter:
             self.setLogLevelFilter(options.logLevelFilter)
