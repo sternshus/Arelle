@@ -56,18 +56,19 @@ def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/0001
     elements = ['EntityRegistrantName', 'DocumentType', 'EntityCentralIndexKey', 'DocumentPeriodEndDate']
     success, model, graph = parseAndRun(args)
     uri = model.uriDir
-    metas = get_xbrl_metafields(model, elements)
-    return (metas, uri, model, graph)
+    metas, subjects = get_xbrl_metafields(model, elements)
+    return (metas, subjects, uri, model, graph)
 
 def get_xbrl_metafields(model, elements):
     metas = {}
+    subjectids = {}
     for k,v  in model.factsByQname.items():
+        localname = k.localName
         for el in elements:
-            if k.localName.startswith(el):
+            if localname.startswith(el):
                 metas[el] = list(v)[0].value
-        if set(elements) == set(metas.keys()) and not(list(metas.values()).count(None)):
-            break
-    return metas
+        subjectids[localname] = list(v)[0].sourceline
+    return metas, subjectids
 
 
 def wsgiApplication(extraArgs=[]): # for example call wsgiApplication(["--plugins=EdgarRenderer"])
