@@ -46,29 +46,18 @@ def main():
     gettext.install("arelle") # needed for options messages
     parseAndRun(args)
     
-def xbrlTurtleGraphModel(furi='http://www.sec.gov/Archives/edgar/data/66740/000155837015002024/mmm-20150930.xml'):
+def xbrlTurtleGraphModel(furi='~/sternshus/gcs/data/1000623/000100062316000141/0001000623-16-000141-xbrl.zip'):
     
     args = ['--plugins', 'xbrlDB', '-f', furi, '--keepOpen', '--store-to-XBRL-DB',
             'rdfTurtleFile,None,None,None,turtle.rdf,None,rdfDB']
-    
-        
     gettext.install("arelle") # needed for options messages
-    elements = ['EntityRegistrantName', 'DocumentType', 'EntityCentralIndexKey', 'DocumentPeriodEndDate']
+
     success, model, graph = parseAndRun(args)
     uri = model.uriDir
-    metas, subjects = get_xbrl_metafields(model, elements)
-    return (metas, subjects, uri, model, graph)
 
-def get_xbrl_metafields(model, elements):
-    metas = {}
-    subjectids = {}
-    for k,v  in model.factsByQname.items():
-        localname = k.localName
-        for el in elements:
-            if localname.startswith(el):
-                metas[el] = list(v)[0].value
-        subjectids[localname] = list(v)[0].sourceline
-    return metas, subjectids
+    return (success, uri, model, graph)
+
+
 
 
 def wsgiApplication(extraArgs=[]): # for example call wsgiApplication(["--plugins=EdgarRenderer"])
